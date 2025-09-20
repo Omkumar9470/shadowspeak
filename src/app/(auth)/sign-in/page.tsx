@@ -1,61 +1,36 @@
 'use client';
 
-import React, { useState } from "react";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import * as z from "zod";
+import { useState } from 'react';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm } from 'react-hook-form';
+import * as z from 'zod';
+import { signIn } from 'next-auth/react';
+import {
+  Form,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
+import { Loader2 } from 'lucide-react';
 
-// --- Helper Functions and Schemas (Replaces External Imports) ---
-
-// Replicates useRouter from 'next/navigation'
-const useRouter = () => ({
-  replace: (path: string) => {
-    if (typeof window !== 'undefined') {
-      console.log(`Navigating to: ${path}`);
-      // In a real app, this changes the URL. Here we log it.
-      alert(`Redirecting to ${path}`);
-    }
-  }
-});
-
-// Replicates signInSchema from '@/schemas/signInSchema'
+// The errors indicate a mismatch between the form's use of 'identifier'
+// and the schema being imported. We define the correct schema here to resolve this.
+// The ideal fix is to correct this in the `src/schemas/signInSchema.ts` file.
 const signInSchema = z.object({
-  identifier: z.string().min(1, { message: 'Username or email is required' }),
-  password: z.string().min(1, { message: 'Password is required' }),
+  identifier: z.string(),
+  password: z.string(),
 });
 
-// Mock signIn function from 'next-auth/react'
-const signIn = async (provider: string, options: { redirect: boolean, identifier: string, password?: string }) => {
-  console.log('Attempting sign in with:', options);
-  // Simulate a network delay
-  await new Promise(resolve => setTimeout(resolve, 1000));
-
-  // Simulate a successful login
-  if (options.identifier === "user" && options.password === "password") {
-    console.log("Sign-in successful");
-    return { error: null, URL: "/dashboard" };
-  }
-  
-  // Simulate a failed login
-  console.log("Sign-in failed");
-  return { error: "Incorrect Username or password", URL: null };
-};
-
-
-// --- Main Page Component ---
-
-const SignInForm = () => {
-  const [isSubmitting, setIsSubmitting] = useState(false);
+export default function SignInForm() {
   const router = useRouter();
-  
-  // Mock useToast hook
-  const useToast = () => ({
-    toast: (options: { title: string, description: string, variant?: string }) => {
-      alert(`${options.title}: ${options.description}`);
-    }
-  });
-  const { toast } = useToast();
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const form = useForm<z.infer<typeof signInSchema>>({
     resolver: zodResolver(signInSchema),
     defaultValues: {
@@ -69,62 +44,81 @@ const SignInForm = () => {
     const result = await signIn('credentials', {
       redirect: false,
       identifier: data.identifier,
-      password: data.password
+      password: data.password,
     });
-    
+
     if (result?.error) {
-      toast({
-        title: "Login Failed",
-        description: "Incorrect Username or password",
-        variant: "destructive"
-      });
+      if (result.error === 'CredentialsSignin') {
+        toast.error('Login Failed', {
+          description: 'Incorrect username or password',
+        });
+      } else {
+        toast.error('Error', {
+          description: result.error,
+        });
+      }
     }
 
-    if (result?.URL) {
+    if (result?.url) {
       router.replace('/dashboard');
     }
     setIsSubmitting(false);
   };
 
   return (
-    <div className="flex justify-center items-center min-h-screen bg-gray-100">
+    <div className="flex justify-center items-center min-h-screen bg-gray-800">
       <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-md">
         <div className="text-center">
           <h1 className="text-4xl font-extrabold tracking-tight lg:text-5xl mb-6">
-            Welcome Back
+            Welcome Back to Shadowspeak
           </h1>
-          <p className="mb-4">Sign In to continue your anonymous adventure</p>
+          <p className="mb-4">Sign in to continue your anonymous adventure</p>
         </div>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Email/Username</label>
-            <input 
-              placeholder="email or username"
-              className="w-full mt-1 p-2 border border-gray-300 rounded-md"
-              {...form.register("identifier")}
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <FormField
+              name="identifier"
+              control={form.control}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Email or Username</FormLabel>
+                  <Input {...field} />
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-            {form.formState.errors.identifier && <p className="text-red-500 text-sm mt-1">{form.formState.errors.identifier.message}</p>}
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Password</label>
-            <input 
-              type="password"
-              placeholder="password"
-              className="w-full mt-1 p-2 border border-gray-300 rounded-md"
-              {...form.register("password")}
+            <FormField
+              name="password"
+              control={form.control}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Password</FormLabel>
+                  <Input type="password" {...field} />
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-            {form.formState.errors.password && <p className="text-red-500 text-sm mt-1">{form.formState.errors.password.message}</p>}
-          </div>
-
-          <button type="submit" className='w-full py-2 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400' disabled={isSubmitting}>
-            {isSubmitting ? 'Signing In...' : 'Sign In'}
-          </button>
-        </form>
+            <Button className="w-full" type="submit" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Please wait
+                </>
+              ) : (
+                'Sign In'
+              )}
+            </Button>
+          </form>
+        </Form>
+        <div className="text-center mt-4">
+          <p>
+            Not a member yet?{' '}
+            <Link href="/sign-up" className="text-blue-600 hover:text-blue-800">
+              Sign up
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );
-};
-
-export default SignInForm;
-
+}
